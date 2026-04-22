@@ -18,11 +18,14 @@ const Dashboard = () => {
   const [data, setData] = useState<InvoiceType[]>([]);
   const [sort, setSort] = useState<string[]>([]);
   const [filter, setFilter] = useState<string[]>([]);
-  const [manipulatedData, setManipulatedData] = useState<InvoiceType[]>([]);
 
   const invoiceData = useSelector((state: RootState) => state.invoice);
   const dispatch = useDispatch<AppDispatch>();
   const { loading, invoiceItems } = invoiceData;
+
+  // Call hooks at component level
+  const sortedArray = useSort(data, sort);
+  const manipulatedData = useFilter(sortedArray, filter);
 
   // Load once from localStorage on mount
   useEffect(() => {
@@ -31,22 +34,16 @@ const Dashboard = () => {
     const handleStorage = () => dispatch(getInvoiceAsync());
     window.addEventListener("storage", handleStorage);
     return () => window.removeEventListener("storage", handleStorage);
-  }, []);
+  }, [dispatch]);
 
   // Reload when returning to dashboard (after create/edit/delete)
   useEffect(() => {
     dispatch(getInvoiceAsync());
-  }, [location.key]);
+  }, [location.key, dispatch]);
 
   useEffect(() => {
     if (!loading) setData(invoiceItems);
   }, [loading, invoiceItems]);
-
-  useEffect(() => {
-    const sortedArray = useSort(data, sort);
-    const filteredData = useFilter(sortedArray, filter);
-    setManipulatedData(filteredData);
-  }, [data, location]);
 
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
