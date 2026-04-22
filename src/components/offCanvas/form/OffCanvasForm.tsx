@@ -18,8 +18,11 @@ import { defaultFormError, defaultForm } from "./defaultValues/default";
 
 // types
 import { FormDataType, FormErrorType } from "../../../types";
+import { ItemTypeError } from "../../../types/ItemType";
 import localDB from "../../../services/localStorage";
 import { FormTextRef } from "../../forms/Text";
+
+type ValidatedItem = ItemTypeError;
 
 interface OffCanvasFormProps {
   header: string;
@@ -41,30 +44,36 @@ const OffCanvasForm = ({
   const validateFormErrors = () => {
     if (formData) {
       Object.entries(formData).forEach(([key, value]) => {
-        let validated: any = [];
-
         if (typeof value === "string") {
-          validated = validateData(key, value);
+          const validated = validateData(key, value);
           updateFormErrors(key, validated, "string");
         } else if (typeof value === "object") {
-          Object.entries(value).forEach(([key2, value2]) => {
-            if (key === "items") {
-              let validatedItem = Object.entries(value2).reduce(
-                (acc: any, [key3, value3]) => {
-                  if (key3 === "id") return { ...acc, id: value3 };
+          if (key === "items") {
+            const validated: ValidatedItem[] = [];
+            Object.entries(value).forEach(([, value2]) => {
+              const validatedItem: ValidatedItem = Object.entries(
+                value2,
+              ).reduce(
+                (acc, [key3, value3]) => {
+                  if (key3 === "id") {
+                    return { ...acc, id: value3 as string };
+                  }
                   return {
                     ...acc,
                     [key3]: validateData(key3, value3 as string),
                   };
                 },
-                {},
-              );
-              validated = [...validated, validatedItem];
-            } else {
-              validated = validateData(key2, value2);
-            }
-            updateFormErrors(key, validated, "object", key2);
-          });
+                {} as Omit<ValidatedItem, "id"> & { id?: string },
+              ) as ValidatedItem;
+              validated.push(validatedItem);
+            });
+            updateFormErrors(key, validated, "object");
+          } else {
+            Object.entries(value).forEach(([key2, value2]) => {
+              const validated = validateData(key2, value2);
+              updateFormErrors(key, validated, "object", key2);
+            });
+          }
         }
       });
     }
@@ -72,26 +81,43 @@ const OffCanvasForm = ({
 
   const updateFormErrors = (
     key: string,
-    validated: { valid: boolean; errorMsg: string },
+    validated: { valid: boolean; errorMsg: string } | ValidatedItem[],
     type: "string" | "object",
     key2?: string,
   ) => {
     if (type === "string") {
-      setFormError((prev) => ({ ...prev, [key]: validated }));
+      setFormError((prev) => ({
+        ...prev,
+        [key]: validated as { valid: boolean; errorMsg: string },
+      }));
     }
     if (type === "object") {
-      setFormError((prev: any) => {
-        if (prev && prev[key] && key2) {
-          if (key === "items") return { ...prev, [key]: validated };
-          return { ...prev, [key]: { ...prev[key], [key2]: validated } };
-        }
-      });
+      if (key === "items") {
+        setFormError((prev) => ({
+          ...prev,
+          [key]: validated as ValidatedItem[],
+        }));
+      } else {
+        setFormError((prev) => {
+          const prevKey = prev[key as keyof FormErrorType];
+          if (prevKey && typeof prevKey === "object" && key2) {
+            return {
+              ...prev,
+              [key]: {
+                ...prevKey,
+                [key2]: validated as { valid: boolean; errorMsg: string },
+              },
+            };
+          }
+          return prev;
+        });
+      }
     }
   };
 
   const submitData = (status: string) => {
     const invoiceData = { ...formData, status };
-    localDB.create(invoiceData as any);
+    localDB.create(invoiceData);
     close();
     window.scrollTo(0, document.body.scrollHeight);
   };
@@ -102,11 +128,11 @@ const OffCanvasForm = ({
   ) => {
     const { name, value } = e.target;
     if (nest) {
-      setFormData((prev: any) => ({
+      setFormData((prev: FormDataType) => ({
         ...prev,
         [nest]:
-          prev && prev[nest]
-            ? { ...prev[nest], [name]: value }
+          prev && prev[nest as keyof FormDataType]
+            ? { ...(prev[nest as keyof FormDataType] as object), [name]: value }
             : { [name]: value },
       }));
     } else {
@@ -114,26 +140,23 @@ const OffCanvasForm = ({
     }
   };
 
-  const handleUpdateFormData = useCallback(
-    (data: any) => {
-      setFormData({ ...formData, ...data });
-    },
-    [formData, formError],
-  );
+  const handleUpdateFormData = useCallback((data: Partial<FormDataType>) => {
+    setFormData((prev) => ({ ...prev, ...data }) as FormDataType);
+  }, []);
 
-  const handleUpdateFormError = (data: any) => {
+  const handleUpdateFormError = (data: Partial<FormErrorType>) => {
     setFormError({ ...formError, ...data });
   };
 
   useEffect(() => {
     if (updateForm) updateForm(formData);
-  }, [formData]);
+  }, [formData, updateForm]);
 
   useEffect(() => {
     if (data && data.senderAddress && data.clientAddress) {
       handleUpdateFormData(data);
     }
-  }, [data]);
+  }, [data, handleUpdateFormData]);
 
   return (
     <form onSubmit={(e) => e.preventDefault()}>
@@ -171,7 +194,19 @@ const OffCanvasForm = ({
         >
           Save as Draft
         </Button>
-        <Button type="button" onClick={() => submitData("pending")}>
+        <Button
+          type="button"
+          onClick={() => {
+            validateFormErrors();
+            // check directly from formData (not state) so it's synchronous
+            const hasClientName = !!formData?.clientName;
+            const hasDescription = !!formData?.description;
+            const hasItems = !!formData?.items?.length;
+            if (hasClientName && hasDescription && hasItems) {
+              submitData("pending");
+            }
+          }}
+        >
           Save & Send
         </Button>
       </div>
