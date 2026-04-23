@@ -1,15 +1,23 @@
-import Button from '../../../components/button/Button';
-import Status from '../../../features/invoice/components/Status';
-import styles from '../../../assets/styles/modules/invoice/invoicepage.module.css';
-import { useDispatch } from 'react-redux';
-import { AppDispatch } from '../../../redux/store';
-import { onLoadCanvas, toggleCanvas } from '../../../redux/offcanvas/offCanvasSlice';
-import { loadModal, toggleModal as toggleModalAction } from '../../../redux/modal/modalSlice';
-import { InvoiceType } from '../../../types';
-import { useNavigate } from 'react-router-dom';
-import localDB from '../../../services/localStorage';
+import Button from "../../../components/button/Button";
+import Status from "../../../features/invoice/components/Status";
+import styles from "../../../assets/styles/modules/invoice/invoicepage.module.css";
+import { useDispatch } from "react-redux";
+import { AppDispatch } from "../../../redux/store";
+import {
+  onLoadCanvas,
+  toggleCanvas,
+} from "../../../redux/offcanvas/offCanvasSlice";
+import {
+  loadModal,
+  toggleModal as toggleModalAction,
+} from "../../../redux/modal/modalSlice";
+import { InvoiceType } from "../../../types";
+import { useNavigate } from "react-router-dom";
+import localDB from "../../../services/localStorage";
 
-interface InvoiceNavProps { invoice: InvoiceType; }
+interface InvoiceNavProps {
+  invoice: InvoiceType;
+}
 
 const InvoiceNav = ({ invoice }: InvoiceNavProps) => {
   const dispatch = useDispatch<AppDispatch>();
@@ -17,33 +25,39 @@ const InvoiceNav = ({ invoice }: InvoiceNavProps) => {
 
   const toggleOffCanvas = () => {
     dispatch(toggleCanvas());
-    dispatch(onLoadCanvas('edit-invoice'));
+    dispatch(onLoadCanvas("edit-invoice"));
   };
 
   const toggleModal = () => {
     dispatch(toggleModalAction());
-    dispatch(loadModal('confirm-delete'));
+    dispatch(loadModal("confirm-delete"));
   };
 
   const markAsPaid = () => {
-    localDB.update(invoice.id, { status: 'paid' });
+    localDB.update(invoice.id, { status: "paid" });
     navigate(0);
   };
 
   const { status } = invoice;
 
   return (
-    <div className={styles.invoiceNav} id='invoiceNav'>
+    <div className={styles.invoiceNav} id="invoiceNav">
       <div className={styles.status}>
         <div>
-          <span className='body-text-2'>Status</span>
+          <span className="body-text-2">Status</span>
           <Status status={status as string} />
         </div>
       </div>
       <div className={styles.buttons}>
-        <Button variant='editButton' onClick={toggleOffCanvas}>Edit</Button>
-        <Button variant='deleteButton' onClick={toggleModal}>Delete</Button>
-        {invoice.status === 'pending' && (
+        {invoice.status !== "paid" && (
+          <Button variant="editButton" onClick={toggleOffCanvas}>
+            Edit
+          </Button>
+        )}
+        <Button variant="deleteButton" onClick={toggleModal}>
+          Delete
+        </Button>
+        {invoice.status === "pending" && (
           <Button onClick={markAsPaid}>Mark as Paid</Button>
         )}
       </div>
